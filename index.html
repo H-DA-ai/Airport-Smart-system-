@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Smart Airport Security Surveillance System - AI-Powered Criminal Detection & Monitoring Dashboard">
+    <title>Airport Security Command Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <!-- Sidebar Navigation -->
+    <nav class="sidebar" id="sidebar">
+        <div class="sidebar-logo">
+            <div class="logo-icon">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+            </div>
+            <span class="logo-text">AIRPORT<br>SECURITY</span>
+        </div>
+        <div class="nav-items">
+            <button class="nav-btn active" data-section="dashboard" id="nav-dashboard">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                <span>Dashboard</span>
+            </button>
+            <button class="nav-btn" data-section="alerts" id="nav-alerts">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                <span>Alerts</span>
+                <span class="badge" id="alert-badge">0</span>
+            </button>
+            <button class="nav-btn" data-section="database" id="nav-database">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                <span>Database</span>
+            </button>
+            <button class="nav-btn" data-section="logs" id="nav-logs">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                <span>Logs</span>
+            </button>
+            <button class="nav-btn" data-section="settings" id="nav-settings">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <span>Settings</span>
+            </button>
+        </div>
+        <div class="sidebar-footer">
+            <div class="system-status" id="system-status">
+                <span class="status-dot active"></span>
+                <span>System Online</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Top Bar -->
+        <header class="top-bar">
+            <div class="top-bar-left">
+                <h1 id="page-title">Security Command Center</h1>
+                <span class="subtitle" id="page-subtitle">Real-time Surveillance Dashboard</span>
+            </div>
+            <div class="top-bar-right">
+                <div class="stat-pill" id="stat-fps">
+                    <span class="pill-label">FPS</span>
+                    <span class="pill-value" id="fps-value">0</span>
+                </div>
+                <div class="stat-pill" id="stat-cameras">
+                    <span class="pill-label">Cameras</span>
+                    <span class="pill-value" id="cameras-value">0</span>
+                </div>
+                <div class="stat-pill alert-pill" id="stat-alerts-pill">
+                    <span class="pill-label">Alerts</span>
+                    <span class="pill-value" id="alerts-pill-value">0</span>
+                </div>
+                <div class="datetime" id="datetime-display"></div>
+            </div>
+        </header>
+
+        <!-- Dashboard Section -->
+        <section class="content-section active" id="section-dashboard">
+            <!-- Stats Cards -->
+            <div class="stats-grid">
+                <div class="stat-card" id="card-cameras">
+                    <div class="stat-icon cameras-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-total-cameras">0</span>
+                        <span class="stat-label">Active Cameras</span>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-detections">
+                    <div class="stat-icon detections-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-total-detections">0</span>
+                        <span class="stat-label">Total Detections</span>
+                    </div>
+                </div>
+                <div class="stat-card warning" id="card-alerts">
+                    <div class="stat-icon alerts-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-total-alerts">0</span>
+                        <span class="stat-label">Active Alerts</span>
+                    </div>
+                </div>
+                <div class="stat-card" id="card-database">
+                    <div class="stat-icon db-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+                    </div>
+                    <div class="stat-info">
+                        <span class="stat-number" id="stat-db-count">0</span>
+                        <span class="stat-label">Watchlist Records</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Video + Alerts Grid -->
+            <div class="dashboard-grid">
+                <div class="video-panel">
+                    <div class="panel-header">
+                        <h2>Live Camera Feeds</h2>
+                        <div class="panel-actions">
+                            <span class="recording-dot"></span>
+                            <span>LIVE</span>
+                        </div>
+                    </div>
+                    <div class="video-grid" id="video-grid">
+                        <div class="video-card" id="video-CAM-001">
+                            <div class="video-header">
+                                <span class="cam-label">CAM-001</span>
+                                <span class="cam-location">Main Entrance</span>
+                                <span class="cam-status active">LIVE</span>
+                            </div>
+                            <img class="video-feed" id="feed-CAM-001" src="/api/video/CAM-001" alt="Camera Feed">
+                            <div class="video-overlay">
+                                <span class="video-fps" id="video-fps-CAM-001">-- FPS</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="alerts-panel">
+                    <div class="panel-header">
+                        <h2>Real-time Alerts</h2>
+                        <button class="btn-sm" onclick="clearAlerts()" id="btn-clear-alerts">Clear All</button>
+                    </div>
+                    <div class="alerts-list" id="alerts-list">
+                        <div class="empty-state">
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            <p>No alerts detected</p>
+                            <span>System monitoring active</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Alerts Section -->
+        <section class="content-section" id="section-alerts">
+            <div class="section-header">
+                <h2>Alert History</h2>
+                <div class="header-actions">
+                    <button class="btn btn-outline" onclick="refreshAlerts()" id="btn-refresh-alerts">Refresh</button>
+                    <button class="btn btn-danger" onclick="clearAlerts()" id="btn-clear-all-alerts">Clear All</button>
+                </div>
+            </div>
+            <div class="alerts-table-wrap">
+                <table class="data-table" id="alerts-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Threat</th>
+                            <th>Person</th>
+                            <th>Confidence</th>
+                            <th>Camera</th>
+                            <th>Details</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alerts-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Database Section -->
+        <section class="content-section" id="section-database">
+            <div class="section-header">
+                <h2>Criminal Watchlist Database</h2>
+                <button class="btn btn-primary" onclick="toggleAddForm()" id="btn-add-criminal">+ Add Criminal</button>
+            </div>
+
+            <!-- Add Criminal Form -->
+            <div class="add-form-panel" id="add-form-panel" style="display:none;">
+                <form id="add-criminal-form" onsubmit="addCriminal(event)">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="crim-name">Full Name</label>
+                            <input type="text" id="crim-name" name="name" required placeholder="Enter full name">
+                        </div>
+                        <div class="form-group">
+                            <label for="crim-crime">Crime Type</label>
+                            <input type="text" id="crim-crime" name="crime" required placeholder="e.g. Fraud, Theft">
+                        </div>
+                        <div class="form-group">
+                            <label for="crim-case-id">Case ID</label>
+                            <input type="text" id="crim-case-id" name="case_id" required placeholder="e.g. CR5678">
+                        </div>
+                        <div class="form-group">
+                            <label for="crim-status">Status</label>
+                            <select id="crim-status" name="status">
+                                <option value="Wanted">Wanted</option>
+                                <option value="Under Investigation">Under Investigation</option>
+                                <option value="Arrested">Arrested</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="crim-danger">Danger Level</label>
+                            <select id="crim-danger" name="danger_level">
+                                <option value="Critical">Critical</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="crim-desc">Description</label>
+                            <input type="text" id="crim-desc" name="description" placeholder="Additional details">
+                        </div>
+                        <div class="form-group full-width">
+                            <label for="crim-images">Face Images</label>
+                            <input type="file" id="crim-images" name="images" multiple accept="image/*">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="btn-submit-criminal">Add to Watchlist</button>
+                        <button type="button" class="btn btn-outline" onclick="toggleAddForm()" id="btn-cancel-add">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Criminal Cards -->
+            <div class="criminals-grid" id="criminals-grid"></div>
+        </section>
+
+        <!-- Logs Section -->
+        <section class="content-section" id="section-logs">
+            <div class="section-header">
+                <h2>Detection Logs</h2>
+                <button class="btn btn-outline" onclick="refreshLogs()" id="btn-refresh-logs">Refresh</button>
+            </div>
+            <div class="logs-table-wrap">
+                <table class="data-table" id="logs-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Person</th>
+                            <th>Threat Level</th>
+                            <th>Confidence</th>
+                            <th>Camera</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Settings Section -->
+        <section class="content-section" id="section-settings">
+            <div class="section-header">
+                <h2>System Configuration</h2>
+            </div>
+            <div class="settings-grid">
+                <div class="settings-card">
+                    <h3>Camera Management</h3>
+                    <form onsubmit="addCamera(event)" id="add-camera-form">
+                        <div class="form-group">
+                            <label for="cam-id">Camera ID</label>
+                            <input type="text" id="cam-id" placeholder="e.g. CAM-002" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cam-source">Source (index or URL)</label>
+                            <input type="text" id="cam-source" placeholder="0, 1, or rtsp://..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="cam-location">Location</label>
+                            <input type="text" id="cam-location" placeholder="e.g. Gate B2" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary" id="btn-add-camera">Add Camera</button>
+                    </form>
+                    <div class="camera-list" id="camera-list"></div>
+                </div>
+                <div class="settings-card">
+                    <h3>System Information</h3>
+                    <div class="info-rows" id="system-info">
+                        <div class="info-row"><span>Uptime</span><span id="info-uptime">--</span></div>
+                        <div class="info-row"><span>Total Detections</span><span id="info-detections">--</span></div>
+                        <div class="info-row"><span>Processing FPS</span><span id="info-fps">--</span></div>
+                        <div class="info-row"><span>Active Cameras</span><span id="info-cameras">--</span></div>
+                        <div class="info-row"><span>Watchlist Size</span><span id="info-watchlist">--</span></div>
+                        <div class="info-row"><span>Face Model</span><span>ArcFace</span></div>
+                        <div class="info-row"><span>Detector</span><span>OpenCV DNN</span></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Alert Sound (silent, plays on detection) -->
+    <audio id="alert-sound" preload="auto">
+        <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1" type="audio/wav">
+    </audio>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
