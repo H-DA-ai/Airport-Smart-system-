@@ -5,11 +5,14 @@ and strict deduplication (max 2 evidence photos, 60s dedup window).
 """
 import json
 import time
+import requests
+import io
+import base64
 from typing import List, Optional, Dict
 from datetime import datetime
 from pathlib import Path
 from .config import ALERT_LOG, POLICE_LOG, CONFIDENCE_ALERT_THRESHOLD, \
-    ALERT_DEDUP_SECONDS, POLICE_ALERT_COOLDOWN
+    ALERT_DEDUP_SECONDS, POLICE_ALERT_COOLDOWN, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID
 from .models import Alert, ThreatLevel, Detection, PoliceDispatch, generate_id
 
 
@@ -134,7 +137,63 @@ class AlertSystem:
         # Mark alert as police-alerted
         alert.police_alerted = True
         self._persist_police(dispatch)
+        
+        # ─── TELEGRAM NOTIFICATION ─────────────────────────────────
+        if TELEGRAM_BOT_TOKEN:
+            try:
+                self._send_telegram_notification(dispatch, alert)
+            except Exception as e:
+                print(f"Failed to send Telegram alert: {e}")
+                
         return dispatch
+
+    def _send_telegram_notification(self, dispatch: PoliceDispatch, alert: Alert):
+        """Sends a notification to Telegram with the evidence photo if available."""
+        chat_id = TELEGRAM_CHAT_ID
+        
+        # Auto-detect Chat ID if empty
+        if not chat_id:
+            try:
+                resp = requests.get(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getUpdates", timeout=5).json()
+                if resp.get("ok") and len(resp["result"]) > 0:
+                    chat_id = str(resp["result"][-1]["message"]["chat"]["id"])
+            except Exception:
+                pass
+                
+        if not chat_id:
+            print("Telegram Chat ID not found. Send a message to the bot first.")
+            return
+
+        message = (
+            f"🚨 <b>CRIMINAL DETECTED: {dispatch.criminal_name}</b> 🚨\n\n"
+            f"📍 <b>Location:</b> {dispatch.camera_location}\n"
+            f"📷 <b>Camera ID:</b> {dispatch.camera_id}\n"
+            f"🎯 <b>Match Confidence:</b> {dispatch.confidence}%\n"
+            f"⚡ <b>Action Taken:</b> {dispatch.action}\n"
+            f"🔒 <b>Gates Locked:</b> {', '.join(dispatch.gates_locked)}\n\n"
+            f"<i>Time: {dispatch.timestamp}</i>"
+        )
+
+        try:
+            # Send photo if we have evidence
+            if alert.evidence_images:
+                # Decode the first evidence image
+                img_data = base64.b64decode(alert.evidence_images[0])
+                files = {"photo": ("evidence.jpg", img_data, "image/jpeg")}
+                data = {"chat_id": chat_id, "caption": message, "parse_mode": "HTML"}
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendPhoto",
+                    data=data, files=files, timeout=10
+                )
+            else:
+                # Send text only
+                data = {"chat_id": chat_id, "text": message, "parse_mode": "HTML"}
+                requests.post(
+                    f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                    data=data, timeout=5
+                )
+        except Exception as e:
+            print(f"Telegram API Error: {e}")
 
     def acknowledge(self, alert_id: str) -> bool:
         for a in self.alerts:

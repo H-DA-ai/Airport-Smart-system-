@@ -83,7 +83,7 @@ class MultiFrameVerifier:
         """
         history = self.tracks.get(track_id, deque())
 
-        if len(history) < 2:
+        if len(history) < VERIFICATION_MIN_MATCHES:
             return {
                 "verified": False,
                 "threat_level": ThreatLevel.SAFE,
@@ -325,30 +325,15 @@ class FaceEngine:
             return None
 
         try:
-            x = facial_area.get("x", 0)
-            y = facial_area.get("y", 0)
-            w = facial_area.get("w", 100)
-            h = facial_area.get("h", 100)
-
-            # Expand crop area slightly for context
-            pad = 30
-            x1 = max(0, x - pad)
-            y1 = max(0, y - pad)
-            x2 = min(frame.shape[1], x + w + pad)
-            y2 = min(frame.shape[0], y + h + pad)
-
-            face_crop = frame[y1:y2, x1:x2]
-            if face_crop.size == 0:
-                face_crop = frame
-
+            # Capture the FULL frame for context, not just the face crop!
             # Save to evidence directory
             ts = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{criminal_id}_{ts}_{self.evidence_counts[criminal_id]}.jpg"
             save_path = EVIDENCE_DIR / filename
-            cv2.imwrite(str(save_path), face_crop)
+            cv2.imwrite(str(save_path), frame)
 
             # Encode to base64
-            _, buf = cv2.imencode('.jpg', face_crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            _, buf = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 85])
             b64 = base64.b64encode(buf.tobytes()).decode('utf-8')
 
             self.evidence_counts[criminal_id] += 1
@@ -517,16 +502,23 @@ class FaceEngine:
                             font, 0.45, (255, 100, 100), 1, cv2.LINE_AA)
 
             else:
-                # ── SAFE: blur the face for privacy ──────────────────────
-                face_roi = annotated[y:y2, x:x2]
-                if face_roi.size > 0:
-                    # Strong blur — bigger kernel = more blurred
-                    blur_ksize = max(15, (w // 5) * 2 + 1)
-                    blurred_roi = cv2.GaussianBlur(face_roi, (blur_ksize, blur_ksize), 30)
-                    annotated[y:y2, x:x2] = blurred_roi
-
-                # Thin green box to show detection (unobtrusive)
-                cv2.rectangle(annotated, (x, y), (x2, y2), (0, 200, 80), 1)
+                # ── SAFE: blur the face for privacy and label as SAFE ────────
+                try:
+                    face_roi = annotated[y:y2, x:x2]
+                    blurred = cv2.GaussianBlur(face_roi, (99, 99), 30)
+                    annotated[y:y2, x:x2] = blurred
+                    
+                    # Draw subtle green box and SAFE label
+                    color = (0, 255, 0)
+                    cv2.rectangle(annotated, (x, y), (x2, y2), color, 2)
+                    
+                    font = cv2.FONT_HERSHEY_SIMPLEX
+                    label = "SAFE"
+                    (tw, th_t), _ = cv2.getTextSize(label, font, 0.5, 2)
+                    cv2.rectangle(annotated, (x, y - th_t - 10), (x + tw + 10, y), (0, 150, 0), -1)
+                    cv2.putText(annotated, label, (x + 5, y - 5), font, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                except Exception:
+                    pass
 
         # System overlay (top bar)
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
