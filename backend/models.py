@@ -1,5 +1,6 @@
 """
 Pydantic data models for the Airport Security System.
+Only two threat levels: CRIMINAL and SAFE. No suspicious.
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
@@ -14,7 +15,6 @@ def generate_id() -> str:
 
 class ThreatLevel(str, Enum):
     CRIMINAL = "Criminal"
-    SUSPICIOUS = "Suspicious"
     SAFE = "Safe"
 
 
@@ -40,7 +40,7 @@ class Detection(BaseModel):
     camera_id: str = "CAM-001"
     camera_location: str = "Unknown"
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
-    facial_area: Dict[str, int] = {}
+    facial_area: Dict[str, Any] = {}
     criminal_id: Optional[str] = None
 
 
@@ -56,7 +56,23 @@ class Alert(BaseModel):
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
     details: str = ""
     acknowledged: bool = False
-    snapshot_base64: Optional[str] = None
+    police_alerted: bool = False
+    # Base64-encoded evidence snapshots (max 2)
+    evidence_images: List[str] = []
+    criminal_id: Optional[str] = None
+
+
+class PoliceDispatch(BaseModel):
+    id: str = Field(default_factory=generate_id)
+    alert_id: str
+    criminal_name: str
+    criminal_id: Optional[str] = None
+    camera_id: str
+    camera_location: str
+    confidence: float
+    timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    action: str = "LOCKDOWN_INITIATED"
+    gates_locked: List[str] = ["Gate A", "Gate B", "Gate C", "Terminal Exit"]
 
 
 class CameraConfig(BaseModel):

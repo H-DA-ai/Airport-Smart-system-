@@ -1,6 +1,6 @@
 """
 FastAPI application - Main backend server for Smart Airport Security System.
-Provides REST APIs, MJPEG streaming, and WebSocket alerts.
+Binary detection: CRIMINAL (alert + evidence + police dispatch) or SAFE (blurred face).
 """
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -29,13 +29,12 @@ from .models import ThreatLevel, Alert, SystemStats, generate_id
 from .database_manager import DatabaseManager
 from .face_engine import FaceEngine
 from .alert_system import AlertSystem
-from .behavior_analyzer import BehaviorAnalyzer
 from .camera_manager import CameraManager
 from .security import SecurityManager
 from .config import ENCRYPTION_KEY_FILE
 
 # ─── Initialize Components ──────────────────────────────
-app = FastAPI(title="Smart Airport Security System", version="2.0")
+app = FastAPI(title="Smart Airport Security System", version="3.0")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_credentials=True,
@@ -45,11 +44,11 @@ app.add_middleware(
 db_manager = DatabaseManager()
 face_engine = FaceEngine()
 alert_system = AlertSystem()
-behavior_analyzer = BehaviorAnalyzer()
 camera_manager = CameraManager()
 security = SecurityManager(ENCRYPTION_KEY_FILE)
 
 ws_clients: List[WebSocket] = []
+ws_lock = threading.Lock()
 start_time = time.time()
 total_detections = 0
 processing_active = False
@@ -59,16 +58,18 @@ processing_active = False
 @app.on_event("startup")
 async def startup():
     global processing_active
-    print("=" * 50)
-    print("  SMART AIRPORT SECURITY SYSTEM v2.0")
-    print("=" * 50)
+    print("=" * 55)
+    print("  SMART AIRPORT SECURITY SYSTEM v3.0")
+    print("  Binary Mode: CRIMINAL | SAFE (No Suspicious)")
+    print("  Privacy: Safe faces auto-blurred on video feed")
+    print("=" * 55)
     face_engine.initialize()
     face_engine.precompute_embeddings(db_manager.get_all())
     camera_manager.initialize()
     processing_active = True
     threading.Thread(target=_processing_loop, daemon=True).start()
     print(f"Dashboard: http://{HOST}:{PORT}")
-    print("=" * 50)
+    print("=" * 55)
 
 
 @app.on_event("shutdown")
@@ -102,77 +103,89 @@ def _processing_loop():
                 )
                 last_detections[cam_id] = detections
 
-                # Only count meaningful detections (non-safe)
-                threat_detections = [d for d in detections if d.threat_level != ThreatLevel.SAFE]
-                total_detections += len(threat_detections)
+                # Count criminal detections only
+                criminal_detections = [d for d in detections
+                                       if d.threat_level == ThreatLevel.CRIMINAL]
+                total_detections += len(criminal_detections)
 
                 for det in detections:
-                    # Enhanced logging with debug info
-                    log_entry = {
-                        "person": det.person_name,
-                        "threat": det.threat_level.value,
-                        "confidence": det.confidence,
-                        "distance": det.distance,
-                        "camera": cam_id,
-                    }
+                    if det.threat_level == ThreatLevel.CRIMINAL:
+                        # Capture evidence snapshot (max 2 per criminal)
+                        evidence_b64 = None
+                        if det.criminal_id and det.facial_area:
+                            evidence_b64 = face_engine.capture_evidence_snapshot(
+                                frame, det.facial_area, det.criminal_id
+                            )
 
-                    # Add debug info if available
-                    debug = face_engine.debug_info
-                    if debug:
-                        for dbg in debug:
-                            log_entry["top_matches"] = dbg.get("top_matches", [])
-                            log_entry["verification"] = dbg.get("verification", "")
-                            log_entry["match_frames"] = dbg.get("match_frames", "")
+                        evidence_list = [evidence_b64] if evidence_b64 else []
 
-                    # Only log non-safe detections to avoid log spam
-                    if det.threat_level != ThreatLevel.SAFE:
-                        security.secure_log(DETECTION_LOG, log_entry)
-
-                    # Create alerts — alert system applies its own strict verification
-                    alert = alert_system.create_from_detection(det)
-                    if alert:
-                        _broadcast_alert(alert)
-
-                    # Update tracking
-                    if det.facial_area:
-                        cx = det.facial_area.get("x", 0) + det.facial_area.get("w", 0) // 2
-                        cy = det.facial_area.get("y", 0) + det.facial_area.get("h", 0) // 2
-                        behavior_analyzer.update_person(det.person_name, (cx, cy))
-                        camera_manager.record_person_movement(
-                            det.person_name, cam_id, camera.location, (cx, cy)
+                        # Create alert
+                        alert = alert_system.create_from_detection(
+                            det, evidence_images=evidence_list
                         )
 
-                    # Update last seen only for CONFIRMED criminals
+                        if alert:
+                            # Send police alert
+                            dispatch = alert_system.send_police_alert(alert)
+                            _broadcast_alert(alert, dispatch)
+
+                            # Log the detection
+                            log_entry = {
+                                "timestamp": det.timestamp,
+                                "person": det.person_name,
+                                "threat": det.threat_level.value,
+                                "confidence": det.confidence,
+                                "distance": det.distance,
+                                "camera": cam_id,
+                                "location": camera.location
+                            }
+                            security.secure_log(DETECTION_LOG, log_entry)
+
+                    # Update last seen in DB for confirmed criminals
                     if det.criminal_id and det.threat_level == ThreatLevel.CRIMINAL:
                         db_manager.update_last_seen(det.criminal_id, camera.location)
 
-                # Behavior analysis
-                behavior_events = behavior_analyzer.analyze(cam_id, camera.location)
-                for event in behavior_events:
-                    alert = alert_system.create_from_behavior(event)
-                    _broadcast_alert(alert)
             else:
                 detections = last_detections.get(cam_id, [])
 
-            # Annotate and store frame
+            # Annotate frame (safe faces blurred, criminal highlighted)
             annotated = face_engine.annotate_frame(frame, detections)
             camera.set_annotated(annotated)
 
         time.sleep(0.01)
 
 
-def _broadcast_alert(alert: Alert):
-    if not alert:
-        return
-    msg = json.dumps({
+def _broadcast_alert(alert: Alert, dispatch=None):
+    """Broadcast alert to all connected WebSocket clients."""
+    payload = {
         "type": "alert",
         "data": alert.model_dump()
-    }, default=str)
-    for client in ws_clients[:]:
-        try:
-            asyncio.run(client.send_text(msg))
-        except Exception:
-            ws_clients.remove(client)
+    }
+    # Remove heavy base64 images from WS broadcast (too large), keep flag only
+    payload["data"]["has_evidence"] = len(alert.evidence_images) > 0
+    payload["data"]["evidence_images"] = []  # Send separately via REST
+
+    if dispatch:
+        dispatch_payload = json.dumps({
+            "type": "police_alert",
+            "data": dispatch.model_dump()
+        }, default=str)
+    else:
+        dispatch_payload = None
+
+    alert_msg = json.dumps(payload, default=str)
+
+    with ws_lock:
+        dead_clients = []
+        for client in ws_clients:
+            try:
+                asyncio.run(client.send_text(alert_msg))
+                if dispatch_payload:
+                    asyncio.run(client.send_text(dispatch_payload))
+            except Exception:
+                dead_clients.append(client)
+        for c in dead_clients:
+            ws_clients.remove(c)
 
 
 # ─── Video Streaming ────────────────────────────────────
@@ -189,31 +202,57 @@ async def snapshot(camera_id: str):
     b64 = camera_manager.get_snapshot_base64(camera_id)
     if b64:
         return {"snapshot": b64}
-    return JSONResponse({"error": "Camera not found"}, 404)
+    return JSONResponse({"error": "Camera not found"}, status_code=404)
 
 
 # ─── Alerts API ─────────────────────────────────────────
 @app.get("/api/alerts")
 async def get_alerts(limit: int = Query(50)):
-    return [a.model_dump() for a in alert_system.get_all(limit)]
+    alerts = alert_system.get_all(limit)
+    result = []
+    for a in alerts:
+        d = a.model_dump()
+        d["has_evidence"] = len(a.evidence_images) > 0
+        # Inline first evidence image for thumbnail display in table
+        d["evidence_thumb"] = a.evidence_images[0] if a.evidence_images else None
+        d["evidence_images"] = []  # Don't send all base64 in list endpoint
+        result.append(d)
+    return result
+
+
+@app.get("/api/alerts/{alert_id}/evidence")
+async def get_alert_evidence(alert_id: str):
+    """Get full evidence images for a specific alert."""
+    for a in alert_system.alerts:
+        if a.id == alert_id:
+            return {"evidence_images": a.evidence_images}
+    return JSONResponse({"error": "Alert not found"}, status_code=404)
 
 
 @app.get("/api/alerts/unacknowledged")
 async def get_unacknowledged():
-    return [a.model_dump() for a in alert_system.get_unacknowledged()]
+    alerts = alert_system.get_unacknowledged()
+    return [{"id": a.id, "threat_level": a.threat_level,
+             "person_name": a.person_name, "camera_location": a.camera_location}
+            for a in alerts]
 
 
 @app.post("/api/alerts/{alert_id}/acknowledge")
 async def acknowledge_alert(alert_id: str):
     if alert_system.acknowledge(alert_id):
         return {"status": "acknowledged"}
-    return JSONResponse({"error": "Alert not found"}, 404)
+    return JSONResponse({"error": "Alert not found"}, status_code=404)
 
 
 @app.delete("/api/alerts")
 async def clear_alerts():
     alert_system.clear_all()
     return {"status": "cleared"}
+
+
+@app.get("/api/alerts/police")
+async def get_police_dispatches(limit: int = Query(50)):
+    return alert_system.get_police_dispatches(limit)
 
 
 # ─── Criminal Database API ──────────────────────────────
@@ -227,7 +266,7 @@ async def get_criminal(criminal_id: str):
     record = db_manager.get_by_id(criminal_id)
     if record:
         return record
-    return JSONResponse({"error": "Not found"}, 404)
+    return JSONResponse({"error": "Not found"}, status_code=404)
 
 
 @app.get("/api/criminals/search/{query}")
@@ -254,7 +293,8 @@ async def add_criminal(
             f.write(content)
         saved_images.append(filename)
 
-    record = db_manager.add(name, crime, case_id, status, danger_level, description, saved_images)
+    record = db_manager.add(name, crime, case_id, status, danger_level,
+                            description, saved_images)
     face_engine.reload_embeddings(db_manager.get_all())
     return record
 
@@ -264,7 +304,7 @@ async def remove_criminal(criminal_id: str):
     if db_manager.remove(criminal_id):
         face_engine.reload_embeddings(db_manager.get_all())
         return {"status": "removed"}
-    return JSONResponse({"error": "Not found"}, 404)
+    return JSONResponse({"error": "Not found"}, status_code=404)
 
 
 @app.post("/api/criminals/{criminal_id}/images")
@@ -277,7 +317,7 @@ async def upload_criminal_image(criminal_id: str, image: UploadFile = File(...))
     if db_manager.add_image(criminal_id, filename):
         face_engine.reload_embeddings(db_manager.get_all())
         return {"status": "uploaded", "filename": filename}
-    return JSONResponse({"error": "Criminal not found"}, 404)
+    return JSONResponse({"error": "Criminal not found"}, status_code=404)
 
 
 # ─── Camera API ─────────────────────────────────────────
@@ -315,16 +355,6 @@ async def get_stats():
     ).model_dump()
 
 
-@app.get("/api/behavior/events")
-async def get_behavior_events():
-    return [e.model_dump() for e in behavior_analyzer.get_all_events()]
-
-
-@app.get("/api/tracking/{person_id}")
-async def get_person_tracking(person_id: str):
-    return camera_manager.get_person_history(person_id)
-
-
 # ─── Detection Logs ─────────────────────────────────────
 @app.get("/api/logs")
 async def get_logs(limit: int = Query(100)):
@@ -344,7 +374,8 @@ async def get_logs(limit: int = Query(100)):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
-    ws_clients.append(websocket)
+    with ws_lock:
+        ws_clients.append(websocket)
     try:
         while True:
             data = await websocket.receive_text()
@@ -363,10 +394,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 ).model_dump()
                 await websocket.send_text(json.dumps({"type": "stats", "data": stats}))
     except WebSocketDisconnect:
-        ws_clients.remove(websocket)
+        pass
     except Exception:
-        if websocket in ws_clients:
-            ws_clients.remove(websocket)
+        pass
+    finally:
+        with ws_lock:
+            if websocket in ws_clients:
+                ws_clients.remove(websocket)
 
 
 # ─── Serve Frontend ─────────────────────────────────────

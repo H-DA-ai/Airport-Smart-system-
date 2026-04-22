@@ -3,13 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Smart Airport Security Surveillance System - AI-Powered Criminal Detection & Monitoring Dashboard">
+    <meta name="description" content="Smart Airport Security Surveillance System - AI-Powered Criminal Detection Dashboard">
     <title>Airport Security Command Center</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/styles.css">
+    <link rel="stylesheet" href="/static/styles.css?v=3.1">
 </head>
 <body>
+    <!-- Police Alert Overlay (fullscreen flash) -->
+    <div class="police-overlay" id="police-overlay">
+        <div class="police-overlay-content">
+            <div class="police-siren">🚨</div>
+            <div class="police-title">POLICE DISPATCHED</div>
+            <div class="police-subtitle" id="police-overlay-name">Criminal Identified</div>
+            <div class="police-detail" id="police-overlay-location"></div>
+            <div class="police-gates">GATES LOCKED: A · B · C · Terminal Exit</div>
+        </div>
+    </div>
+
+    <!-- Evidence Modal -->
+    <div class="evidence-modal" id="evidence-modal">
+        <div class="evidence-modal-inner">
+            <div class="evidence-modal-header">
+                <span id="evidence-modal-title">Evidence — Criminal Detection</span>
+                <button onclick="closeEvidenceModal()" id="btn-close-evidence">✕ Close</button>
+            </div>
+            <div class="evidence-modal-body" id="evidence-modal-body"></div>
+        </div>
+    </div>
+
     <!-- Sidebar Navigation -->
     <nav class="sidebar" id="sidebar">
         <div class="sidebar-logo">
@@ -27,16 +49,20 @@
             </button>
             <button class="nav-btn" data-section="alerts" id="nav-alerts">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-                <span>Alerts</span>
-                <span class="badge" id="alert-badge">0</span>
+                <span>Alert History</span>
+                <span class="badge" id="alert-badge" style="display:none">0</span>
+            </button>
+            <button class="nav-btn" data-section="police" id="nav-police">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                <span>Police Log</span>
             </button>
             <button class="nav-btn" data-section="database" id="nav-database">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
-                <span>Database</span>
+                <span>Watchlist DB</span>
             </button>
             <button class="nav-btn" data-section="logs" id="nav-logs">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-                <span>Logs</span>
+                <span>Detection Logs</span>
             </button>
             <button class="nav-btn" data-section="settings" id="nav-settings">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -45,7 +71,7 @@
         </div>
         <div class="sidebar-footer">
             <div class="system-status" id="system-status">
-                <span class="status-dot active"></span>
+                <span class="status-dot"></span>
                 <span>System Online</span>
             </div>
         </div>
@@ -78,7 +104,6 @@
 
         <!-- Dashboard Section -->
         <section class="content-section active" id="section-dashboard">
-            <!-- Stats Cards -->
             <div class="stats-grid">
                 <div class="stat-card" id="card-cameras">
                     <div class="stat-icon cameras-icon">
@@ -95,7 +120,7 @@
                     </div>
                     <div class="stat-info">
                         <span class="stat-number" id="stat-total-detections">0</span>
-                        <span class="stat-label">Total Detections</span>
+                        <span class="stat-label">Criminal Detections</span>
                     </div>
                 </div>
                 <div class="stat-card warning" id="card-alerts">
@@ -116,6 +141,12 @@
                         <span class="stat-label">Watchlist Records</span>
                     </div>
                 </div>
+            </div>
+
+            <!-- Privacy notice -->
+            <div class="privacy-notice" id="privacy-notice">
+                <span class="privacy-icon">🔒</span>
+                <span><strong>Privacy Mode Active:</strong> Safe passengers' faces are automatically blurred on the live feed. Only confirmed criminals appear unmasked.</span>
             </div>
 
             <!-- Video + Alerts Grid -->
@@ -158,7 +189,7 @@
             </div>
         </section>
 
-        <!-- Alerts Section -->
+        <!-- Alert History Section -->
         <section class="content-section" id="section-alerts">
             <div class="section-header">
                 <h2>Alert History</h2>
@@ -172,16 +203,39 @@
                     <thead>
                         <tr>
                             <th>Time</th>
-                            <th>Type</th>
-                            <th>Threat</th>
                             <th>Person</th>
                             <th>Confidence</th>
-                            <th>Camera</th>
-                            <th>Details</th>
+                            <th>Location</th>
+                            <th>Evidence</th>
+                            <th>Police</th>
                             <th>Action</th>
                         </tr>
                     </thead>
                     <tbody id="alerts-tbody"></tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Police Dispatch Log Section -->
+        <section class="content-section" id="section-police">
+            <div class="section-header">
+                <h2>Police Dispatch Log</h2>
+                <button class="btn btn-outline" onclick="refreshPoliceLog()" id="btn-refresh-police">Refresh</button>
+            </div>
+            <div class="alerts-table-wrap">
+                <table class="data-table" id="police-table">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Criminal</th>
+                            <th>Location</th>
+                            <th>Camera</th>
+                            <th>Confidence</th>
+                            <th>Action</th>
+                            <th>Gates Locked</th>
+                        </tr>
+                    </thead>
+                    <tbody id="police-tbody"></tbody>
                 </table>
             </div>
         </section>
@@ -193,7 +247,6 @@
                 <button class="btn btn-primary" onclick="toggleAddForm()" id="btn-add-criminal">+ Add Criminal</button>
             </div>
 
-            <!-- Add Criminal Form -->
             <div class="add-form-panel" id="add-form-panel" style="display:none;">
                 <form id="add-criminal-form" onsubmit="addCriminal(event)">
                     <div class="form-grid">
@@ -231,8 +284,11 @@
                             <input type="text" id="crim-desc" name="description" placeholder="Additional details">
                         </div>
                         <div class="form-group full-width">
-                            <label for="crim-images">Face Images</label>
+                            <label for="crim-images">Face Images (required for detection)</label>
                             <input type="file" id="crim-images" name="images" multiple accept="image/*">
+                            <span style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;display:block">
+                                Upload clear frontal face photos. More images = better detection accuracy.
+                            </span>
                         </div>
                     </div>
                     <div class="form-actions">
@@ -242,7 +298,6 @@
                 </form>
             </div>
 
-            <!-- Criminal Cards -->
             <div class="criminals-grid" id="criminals-grid"></div>
         </section>
 
@@ -261,6 +316,7 @@
                             <th>Threat Level</th>
                             <th>Confidence</th>
                             <th>Camera</th>
+                            <th>Location</th>
                         </tr>
                     </thead>
                     <tbody id="logs-tbody"></tbody>
@@ -297,23 +353,23 @@
                     <h3>System Information</h3>
                     <div class="info-rows" id="system-info">
                         <div class="info-row"><span>Uptime</span><span id="info-uptime">--</span></div>
-                        <div class="info-row"><span>Total Detections</span><span id="info-detections">--</span></div>
+                        <div class="info-row"><span>Criminal Detections</span><span id="info-detections">--</span></div>
                         <div class="info-row"><span>Processing FPS</span><span id="info-fps">--</span></div>
                         <div class="info-row"><span>Active Cameras</span><span id="info-cameras">--</span></div>
                         <div class="info-row"><span>Watchlist Size</span><span id="info-watchlist">--</span></div>
                         <div class="info-row"><span>Face Model</span><span>ArcFace</span></div>
-                        <div class="info-row"><span>Detector</span><span>OpenCV DNN</span></div>
+                        <div class="info-row"><span>Privacy Mode</span><span style="color:var(--accent-green)">Enabled (Safe faces blurred)</span></div>
+                        <div class="info-row"><span>Detection Mode</span><span style="color:var(--accent-cyan)">CRIMINAL | SAFE only</span></div>
                     </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <!-- Alert Sound (silent, plays on detection) -->
     <audio id="alert-sound" preload="auto">
         <source src="data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1" type="audio/wav">
     </audio>
 
-    <script src="/static/js/app.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 </html>
